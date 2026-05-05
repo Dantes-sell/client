@@ -1,0 +1,59 @@
+plugins {
+    id 'base'
+}
+
+ext {
+    mcVersion = '1.21.4'
+    loaderVersion = '0.16.14'
+    installerVersion = '1.0.1'
+    modFileName = 'dantes-client-1.21.4.jar'
+}
+
+def runtimeDir = file("$projectDir/runtime")
+def modsDir = file("$runtimeDir/mods")
+def cacheDir = file("$projectDir/.cache")
+def installerJar = file("$cacheDir/fabric-installer-${installerVersion}.jar")
+
+tasks.register('prepareDirs') {
+    doLast {
+        runtimeDir.mkdirs()
+        modsDir.mkdirs()
+        cacheDir.mkdirs()
+    }
+}
+
+tasks.register('downloadFabricInstaller') {
+    dependsOn 'prepareDirs'
+    outputs.file(installerJar)
+    doLast {
+        if (!installerJar.exists()) {
+            def url = "https://maven.fabricmc.net/net/fabricmc/fabric-installer/${installerVersion}/fabric-installer-${installerVersion}.jar"
+            println "Downloading Fabric installer: ${url}"
+            new URL(url).withInputStream { i -> installerJar.withOutputStream { it << i } }
+        } else {
+            println "Fabric installer already downloaded: ${installerJar}"
+        }
+    }
+}
+
+tasks.register('installFabricClient', Exec) {
+    dependsOn 'downloadFabricInstaller'
+    commandLine org.gradle.internal.jvm.Jvm.current().javaExecutable, '-jar', installerJar.absolutePath, 'client', '-dir', runtimeDir.absolutePath, '-mcversion', mcVersion, '-loader', loaderVersion, '-noprofile'
+}
+
+tasks.register('copyDantesMod', Copy) {
+    dependsOn 'prepareDirs'
+    from file("$projectDir/mods/${modFileName}")
+    into modsDir
+}
+
+tasks.register('setupClient') {
+    group = 'dantes'
+    description = 'Downloads Fabric 1.21.4 and installs Dantes mod into runtime/mods'
+    dependsOn 'installFabricClient', 'copyDantesMod'
+    doLast {
+        println "Done. Runtime folder: ${runtimeDir}"
+        println "Mod installed: ${new File(modsDir, modFileName)}"
+    }
+}
+
